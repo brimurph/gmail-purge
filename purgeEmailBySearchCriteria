@@ -1,0 +1,43 @@
+function purgeEmailBySearchCriteria() {
+
+  // enter your search here. it's recommended that you use a gmail label to mark what you intent to purge.
+  // That way you can use a label as your query to be 100% sure of what you're about to permanently delete.
+  var SEARCH_QUERY = '';
+  
+  var startTime = (new Date()).getTime();
+  Logger.log('Email purge started at ' + new Date(startTime) + ' for search: ' + SEARCH_QUERY);
+  
+  // ensure that previous triggers are cleaned up to avoid trigger limits
+  var triggers = ScriptApp.getProjectTriggers();
+  Logger.log('Active trigger count: ' + triggers.length);
+  for (var i=0; i < triggers.length; i++) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }
+  
+  // loop through as much as we can for 5 minutes to avoid execution time limits
+  var continueExecution = true;
+  var currentTime = (new Date()).getTime();
+  while (currentTime - startTime <= 300000) {
+    // sadly, 100 threads is the maximum you can delete in a single operation
+    var threads = GmailApp.search(SEARCH_QUERY, 0, 100);
+    if (threads > 0) {
+      GmailApp.moveThreadsToTrash(threads);
+    } else {
+      // looks like we're done!
+      continueExecution = false;
+      Logger.log('Email purge completed at ' + new Date(startTime) + ' for search: ' + SEARCH_QUERY);
+      break;
+    }
+  }
+
+  if (continueExecution) {
+    // trigger the script again in 1 minute for a new allotment of execution time
+    var triggerTime = new Date((new Date()).getTime() + 60000);
+    ScriptApp.newTrigger("purgeEmail")
+             .timeBased()
+             .at(triggerTime)
+             .create();
+    Logger.log('Trigger created and set to resume email purge at ' + triggerTime  + ' for search: ' + SEARCH_QUERY);
+  }
+
+}
